@@ -1,0 +1,47 @@
+name: Bootstrap npm package
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: npm-bootstrap
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@2499700e2b609c99d522a27f02e5d841c72d4594 # v6.2.0
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Verify release candidate
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts
+          npm test
+          npm run build
+          npm pack --dry-run
+
+      - name: Require the first version to be absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view '@api-disk-integrations/agent-mandate-mcp@0.1.0' version >/dev/null 2>&1; then
+            echo 'Refusing to overwrite an existing immutable npm version.' >&2
+            exit 1
+          fi
+
+      - name: Publish the public package with provenance
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
