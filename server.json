@@ -1,0 +1,33 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.API-Disk-Integrations/agent-mandate",
+  "description": "Verify a proposed action against a signed Agent Mandate without executing or mutating accounts.",
+  "title": "Agent Mandate Verification",
+  "websiteUrl": "https://agentmandate-api.com",
+  "repository": {
+    "url": "https://github.com/API-Disk-Integrations/agent-mandate-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@api-disk-integrations/agent-mandate-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "AGENT_MANDATE_API_KEY",
+          "description": "Caller-owned Agent Mandate API key.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

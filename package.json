@@ -1,0 +1,57 @@
+{
+  "name": "@api-disk-integrations/agent-mandate-mcp",
+  "version": "0.1.0",
+  "mcpName": "io.github.API-Disk-Integrations/agent-mandate",
+  "description": "Verification-only MCP server for evaluating actions against signed Agent Mandates.",
+  "license": "MIT",
+  "author": "API Disk Integrations",
+  "homepage": "https://agentmandate-api.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/API-Disk-Integrations/agent-mandate-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/API-Disk-Integrations/agent-mandate-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "agent-governance",
+    "authorization",
+    "policy"
+  ],
+  "type": "module",
+  "bin": {
+    "agent-mandate-mcp": "dist/src/index.js"
+  },
+  "files": [
+    "dist/src",
+    "server.json",
+    "README.md",
+    "LICENSE",
+    "THREAT_MODEL.md",
+    "ROLLBACK.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/node": "26.4.1",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2"
+  }
+}
