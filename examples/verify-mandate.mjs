@@ -20,22 +20,16 @@
  * printed, never written to disk, and never passed on a command line. The
  * signature is printed only as a short prefix.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const API = process.env.AGENT_MANDATE_API_URL ?? 'https://agentmandate-api.com';
 
-/**
- * Defaults to the GitHub Release tarball because npm currently serves 0.1.0,
- * which has the first-use defect this version fixes. Override to test another
- * artifact. Once 0.1.1 is on npm this becomes
- * '@api-disk-integrations/agent-mandate-mcp@0.1.1'.
- */
-const SPEC = process.env.AGENT_MANDATE_MCP_SPEC ??
-  'https://github.com/API-Disk-Integrations/agent-mandate-mcp/releases/download/v0.1.1/api-disk-integrations-agent-mandate-mcp-0.1.1.tgz';
+/** The published package. Override to test a release tarball or a local build. */
+const SPEC = process.env.AGENT_MANDATE_MCP_SPEC ?? '@api-disk-integrations/agent-mandate-mcp@0.1.1';
 
 /** The grant allows up to 100,000 minor units but requires approval above 25,000. */
 const CLAIMS = {
@@ -88,11 +82,31 @@ async function createMandate(key) {
   return body;
 }
 
-/** A minimal stdio MCP client. Keeps the walkthrough dependency-free. */
-function startServer(key, cache) {
-  const child = spawn('npx', ['--yes', SPEC], {
+/**
+ * Installs the published artifact into a throwaway prefix and runs its binary
+ * directly.
+ *
+ * WHY NOT `npx <spec>`
+ * npx resolves a LOCAL package first. Run from inside this repository, whose
+ * package.json declares this very bin, npx tries the working tree instead of the
+ * published package and fails with "command not found". Since the README tells you
+ * to run this from the clone, that is the normal case, and it would silently defeat
+ * the point of testing what a developer actually installs.
+ */
+function installAndStart(key, dir) {
+  const install = spawnSync('npm', ['install', '--no-save', '--no-audit', '--no-fund', '--loglevel', 'error', '--prefix', dir, SPEC], {
+    encoding: 'utf8',
+    env: { ...process.env, npm_config_cache: join(dir, '.npm'), npm_config_update_notifier: 'false' },
+  });
+  if (install.status !== 0) {
+    throw new Error(`could not install ${SPEC}: ${(install.stderr || install.stdout || '').trim().slice(0, 400)}`);
+  }
+  const bin = join(dir, 'node_modules', '.bin', 'agent-mandate-mcp');
+  if (!existsSync(bin)) throw new Error(`the installed package did not provide the agent-mandate-mcp binary at ${bin}`);
+
+  const child = spawn(bin, [], {
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, AGENT_MANDATE_API_KEY: key, npm_config_cache: cache, CI: '1' },
+    env: { ...process.env, AGENT_MANDATE_API_KEY: key },
   });
   const pending = new Map();
   let id = 0, buf = '', stderr = '';
@@ -112,10 +126,10 @@ function startServer(key, cache) {
     const n = ++id;
     pending.set(n, { resolve, reject });
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: n, method, params }) + '\n');
-    setTimeout(() => { if (pending.has(n)) { pending.delete(n); reject(new Error(`${method} timed out. stderr: ${stderr.slice(0, 200)}`)); } }, 60000);
+    setTimeout(() => { if (pending.has(n)) { pending.delete(n); reject(new Error(`${method} timed out. stderr: ${stderr.slice(0, 300)}`)); } }, 60000);
   });
   const notify = (method) => child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method }) + '\n');
-  return { child, call, notify, stderr: () => stderr };
+  return { child, call, notify };
 }
 
 function describe(result) {
@@ -142,9 +156,10 @@ try {
   console.log(`signature: ${String(envelope.signature).slice(0, 12)}… (${String(envelope.signature).length} chars)`);
   console.log('That whole body is the envelope. Pass it through unchanged.');
 
-  console.log(`\n=== 2. Start the MCP server ===`);
+  console.log(`\n=== 2. Install and start the published MCP server ===`);
   console.log(`spec: ${SPEC}`);
-  server = startServer(key, cache);
+  console.log('installing into a throwaway prefix, so this tests the published artifact');
+  server = installAndStart(key, cache);
   const info = await server.call('initialize', {
     protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'verify-mandate-walkthrough', version: '1.0.0' },
   });
