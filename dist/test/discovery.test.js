@@ -42,7 +42,7 @@ test('a missing caller credential fails closed without making a request', async 
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
     const result = await client.callTool({
         name: 'verify_action',
-        arguments: { mandate: { signature: 'fixture' }, action: { action: 'inventory.read' } },
+        arguments: { mandate: { mandate: { id: 'mnd_fixture' }, signature: 'fixture' }, action: { action: 'inventory.read' } },
     });
     assert.equal(result.isError, true);
     assert.equal(calls, 0);
@@ -62,7 +62,7 @@ test('the MCP error boundary never surfaces provider-controlled strings', async 
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
     const result = await client.callTool({
         name: 'verify_action',
-        arguments: { mandate: { signature: 'fixture' }, action: { action: 'inventory.read' } },
+        arguments: { mandate: { mandate: { id: 'mnd_fixture' }, signature: 'fixture' }, action: { action: 'inventory.read' } },
     });
     assert.equal(result.isError, true);
     assert.equal(result.content[0]?.type, 'text');
@@ -102,7 +102,7 @@ test('a client pinned to protocol revision 2026-07-28 discovers and calls the ex
     const result = await client.callTool({
         name: 'verify_action',
         arguments: {
-            mandate: { signature: 'fixture' },
+            mandate: { mandate: { id: 'mnd_fixture' }, signature: 'fixture' },
             action: { action: 'inventory.read' },
         },
     });

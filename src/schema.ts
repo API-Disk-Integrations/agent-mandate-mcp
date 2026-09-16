@@ -17,7 +17,21 @@ const actionSchema = z.object({
 })
 
 export const verifyActionInput = z.object({
-  mandate: z.record(z.string(), z.unknown()),
+  // The SIGNED ENVELOPE returned by POST /v1/mandates, not a bare claims object.
+  //
+  // This was `z.record(z.string(), z.unknown())`, which accepted anything. The
+  // free demo route POST /v1/demo/verify takes bare claims and works, so the
+  // landing page, the playground and the published Postman example all teach
+  // that shape. A developer who followed them and called this tool got an
+  // HTTP 400 naming an internal field path, with no route to a signed mandate.
+  //
+  // Requiring the envelope here means the tool refuses locally with a message
+  // that names the actual cause, instead of forwarding a request that cannot
+  // succeed.
+  mandate: z.object({
+    mandate: z.record(z.string(), z.unknown()),
+    signature: z.string().min(1),
+  }).passthrough(),
   action: actionSchema.optional(),
   actions: z.array(actionSchema).min(1).max(500).optional(),
 }).strict().superRefine((value, ctx) => {
