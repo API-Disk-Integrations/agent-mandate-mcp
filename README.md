@@ -16,6 +16,12 @@ no card. Issuing mandates is free and never consumes the allowance; one unit is 
 action *verified*. Paid plans start at $299/month for 10,000 verified actions. This
 walkthrough consumes at most **two** of your free units.
 
+**Running this in production?** [When a signed mandate is and is not worth
+it](https://agentmandate-api.com/use-cases/ai-agent-action-authorization-api#production),
+with the published pricing. Short version: if the approval gate is one you control, a
+policy check inside your own service is simpler and cheaper. The signature earns its
+price when somebody other than you has to be able to verify the decision.
+
 **Just exploring?** `POST /v1/demo/verify` takes raw claims, needs no key at all, and
 is shown at the end. It does not replace the signed-envelope walkthrough, because it
 does not check a signature.
