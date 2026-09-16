@@ -15,7 +15,11 @@ export function createServer(options = {}) {
     });
     server.registerTool('verify_action', {
         title: 'Verify an action against an Agent Mandate',
-        description: 'Verification only: evaluate supplied action facts against a supplied signed mandate. This tool does not execute the action or mutate any account.',
+        description: 'Verification only: evaluate supplied action facts against a signed mandate. ' +
+            'The `mandate` argument is the envelope returned by POST /v1/mandates, which carries ' +
+            'the claims under `mandate` alongside its `signature` — pass that response through unchanged. ' +
+            'A bare claims object is what the keyless POST /v1/demo/verify route accepts, and it is ' +
+            'rejected here. This tool does not execute the action or mutate any account.',
         inputSchema: verifyActionInput,
         outputSchema: verifyActionOutput,
         annotations: {

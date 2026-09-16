@@ -12,8 +12,8 @@ Status: **public source; npm package and Official MCP Registry release
 pending**. The repository link below is live. The npm and Registry identities
 become available only after their separate public releases:
 
-- npm: `@api-disk-integrations/agent-mandate-mcp@0.1.0`
-- Official MCP Registry: `io.github.API-Disk-Integrations/agent-mandate@0.1.0`
+- npm: `@api-disk-integrations/agent-mandate-mcp@0.1.1`
+- Official MCP Registry: `io.github.API-Disk-Integrations/agent-mandate@0.1.1`
 - source: `API-Disk-Integrations/agent-mandate-mcp`
 
 ## Install and run
@@ -23,7 +23,7 @@ back, run it with the version pinned:
 
 ```bash
 AGENT_MANDATE_API_KEY="$AGENT_MANDATE_API_KEY" \
-  npx --yes @api-disk-integrations/agent-mandate-mcp@0.1.0
+  npx --yes @api-disk-integrations/agent-mandate-mcp@0.1.1
 ```
 
 Do not commit a literal credential. A generic stdio client configuration is:
@@ -33,7 +33,7 @@ Do not commit a literal credential. A generic stdio client configuration is:
   "mcpServers": {
     "agent-mandate": {
       "command": "npx",
-      "args": ["--yes", "@api-disk-integrations/agent-mandate-mcp@0.1.0"],
+      "args": ["--yes", "@api-disk-integrations/agent-mandate-mcp@0.1.1"],
       "env": {
         "AGENT_MANDATE_API_KEY": "${AGENT_MANDATE_API_KEY}"
       }
@@ -46,6 +46,75 @@ Do not commit a literal credential. A generic stdio client configuration is:
 Use the client host's documented secret facility if its interpolation syntax
 differs. The package uses stdio and reads exactly that environment variable;
 it has no remote `/mcp` endpoint.
+
+## Check whether an agent action exceeds its signed mandate
+
+The complete first use, in two calls. Every command below was run against
+production on 2026-09-15 and the decision shown is the decision returned.
+
+**Step 1 — create a mandate.** This returns the *signed envelope*. The tool needs
+this envelope, not the bare claims you send here.
+
+```sh
+curl -X POST https://agentmandate-api.com/v1/mandates \
+  -H "authorization: Bearer $AGENT_MANDATE_API_KEY" \
+  -H 'content-type: application/json' \
+  -d '{
+    "principal": "user_8814",
+    "agent": "agent_procurement_v3",
+    "expiresAt": "2026-12-31T23:59:59Z",
+    "currency": "USD",
+    "totalSpendCapMinor": 500000,
+    "grants": [{
+      "action": "payments.transfer",
+      "resources": ["vendor.acme"],
+      "maxAmountMinor": 100000,
+      "approvalRequiredAboveMinor": 25000
+    }]
+  }'
+```
+
+Answers `201` with `{"mandate": {…}, "signature": "…", "requestId": "…"}`.
+**That whole response body is the envelope.** Pass it through unchanged.
+
+**Step 2 — verify an action against it.** Call `verify_action` with the envelope as
+`mandate`:
+
+```json
+{
+  "mandate": { "mandate": { "…": "…" }, "signature": "…" },
+  "action": {
+    "agent": "agent_procurement_v3",
+    "action": "payments.transfer",
+    "resource": "vendor.acme",
+    "amountMinor": 30000,
+    "currency": "USD"
+  }
+}
+```
+
+The grant allows up to 100000 minor units but requires approval above 25000, and the
+action asks for 30000. So the correct answer is **`requires_approval`**, with the
+violation `Actions above 25000 minor units need a human approval token.`
+
+**A `deny` or `requires_approval` is a correct result, not a failure.** The point of
+the tool is that it says no when the mandate says no.
+
+### If you get HTTP 400
+
+`"mandate.mandate" must be the claims object` means bare claims were passed where the
+envelope belongs. The keyless demo route `POST /v1/demo/verify` takes bare claims and
+needs no key, which is why the shapes differ. Run step 1 and pass its whole response.
+
+### Try it with no key at all
+
+```sh
+curl -X POST https://agentmandate-api.com/v1/demo/verify \
+  -H 'content-type: application/json' \
+  -d '{"mandate":{"principal":"user_8814","agent":"a1","expiresAt":"2026-12-31T23:59:59Z","currency":"USD","totalSpendCapMinor":500000,"grants":[{"action":"payments.transfer","resources":["vendor.acme"],"maxAmountMinor":100000,"approvalRequiredAboveMinor":25000}]},"action":{"agent":"a1","action":"payments.transfer","resource":"vendor.acme","amountMinor":30000,"currency":"USD"}}'
+```
+
+Note this route takes **bare claims**, not the envelope.
 
 ## Tool contract
 
