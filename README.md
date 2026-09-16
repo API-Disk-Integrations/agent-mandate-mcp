@@ -22,12 +22,6 @@ does not check a signature.
 
 ---
 
-> **Installation notice.** The npm registry currently serves **0.1.0, which has a known
-> first-use defect**: its input schema accepted any object for `mandate`, so a call built
-> from the keyless demo's shape returned `HTTP 400 invalid_request`. Use the tested
-> GitHub Release below until `0.1.1` is on npm. This notice is removed once the registry
-> artifact is validated.
-
 ## Run the walkthrough
 
 ```bash
@@ -38,8 +32,9 @@ npm ci
 AGENT_MANDATE_API_KEY=your_key node examples/verify-mandate.mjs
 ```
 
-The example runner comes from this repository; the **MCP server it starts is the
-released 0.1.1 artifact**, downloaded from the release below, not your working tree.
+The example runner comes from this repository, but it installs
+`@api-disk-integrations/agent-mandate-mcp@0.1.1` **from npm into a throwaway prefix**
+and runs that, so it exercises the published artifact rather than your working tree.
 Omit `AGENT_MANDATE_API_KEY` and it prompts without echoing.
 
 ### What it prints
@@ -71,15 +66,9 @@ correct result, not a failure.
 
 ## Install the server
 
-Until `0.1.1` is on npm, install from the release tarball:
-
 ```bash
-curl -fsSLO https://github.com/API-Disk-Integrations/agent-mandate-mcp/releases/download/v0.1.1/api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
-shasum -a 256 api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
-npm install -g ./api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
+npx --yes @api-disk-integrations/agent-mandate-mcp@0.1.1
 ```
-
-Compare the checksum against the one published on the release page before installing.
 
 A generic stdio client configuration:
 
@@ -87,7 +76,8 @@ A generic stdio client configuration:
 {
   "mcpServers": {
     "agent-mandate": {
-      "command": "agent-mandate-mcp",
+      "command": "npx",
+      "args": ["--yes", "@api-disk-integrations/agent-mandate-mcp@0.1.1"],
       "env": {
         "AGENT_MANDATE_API_KEY": "${AGENT_MANDATE_API_KEY}"
       }
@@ -100,8 +90,18 @@ A generic stdio client configuration:
 documented secret facility if its syntax differs. The package uses stdio and reads
 exactly that environment variable. It has no remote `/mcp` endpoint.
 
-Once `0.1.1` is published, the command becomes
-`npx --yes @api-disk-integrations/agent-mandate-mcp@0.1.1`.
+**Pin the version.** `0.1.0` is still on the registry and has a first-use defect: its
+input schema accepted any object for `mandate`, so a call built from the keyless
+demo's shape returned `HTTP 400`.
+
+If you would rather verify a checksummed artifact, every release also attaches a
+tarball and its SHA-256:
+
+```bash
+curl -fsSLO https://github.com/API-Disk-Integrations/agent-mandate-mcp/releases/download/v0.1.1/api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
+shasum -a 256 api-disk-integrations-agent-mandate-mcp-0.1.1.tgz   # compare with the release page
+npm install -g ./api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
+```
 
 ## The two shapes, which is the thing that trips people up
 
