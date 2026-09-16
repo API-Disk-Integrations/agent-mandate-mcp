@@ -1,8 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { verifyActionInput, verifyActionOutput } from './schema.js';
 import { SafeApiError, verifyAction } from './client.js';
+/**
+ * Kept in step with package.json by a test, because a server that misreports its
+ * own version is the kind of small dishonesty that makes a developer stop
+ * trusting the rest of the output. 0.1.0 shipped claiming 0.1.0 while the
+ * package said 0.1.1.
+ */
+export const SERVER_VERSION = '0.1.1';
 export function createServer(options = {}) {
-    const server = new McpServer({ name: 'agent-mandate-verifier', version: '0.1.0' }, {
+    const server = new McpServer({ name: 'agent-mandate-verifier', version: SERVER_VERSION }, {
         supportedProtocolVersions: [
             '2026-07-28',
             '2025-11-25',

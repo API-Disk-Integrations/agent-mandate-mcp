@@ -1,39 +1,93 @@
-# Agent Mandate MCP
+# Verify a signed agent mandate through MCP
 
-Verification-only MCP server exposing one tool: `verify_action`.
+**Check a signed authorization envelope before trusting an agent's claimed authority.**
 
-The tool sends caller-supplied mandate and action facts to Agent Mandate's
-`POST /v1/verify` endpoint and returns its `allow`, `deny`, or
-`requires_approval` receipts. It does not issue or revoke mandates, execute an
-action, change an account, or call billing. It makes at most one API request per
-tool call and never retries automatically.
+Agent Mandate's MCP tool accepts the complete `{ mandate, signature }` envelope
+returned by `POST /v1/mandates`. **Raw claims are not a signed envelope.**
 
-Status: **public source; npm package and Official MCP Registry release
-pending**. The repository link below is live. The npm and Registry identities
-become available only after their separate public releases:
+**The walkthrough:** create an envelope, verify an action through MCP, then change one
+signed field and verify again. You see the real verification result for each request,
+including the one that gets refused.
 
-- npm: `@api-disk-integrations/agent-mandate-mcp@0.1.1`
-- Official MCP Registry: `io.github.API-Disk-Integrations/agent-mandate@0.1.1`
-- source: `API-Disk-Integrations/agent-mandate-mcp`
+**Requirements:** Node.js 20 or newer, and an Agent Mandate API key.
 
-## Install and run
+**Getting a key:** the free tier includes **500 verified actions per month** and needs
+no card. Issuing mandates is free and never consumes the allowance; one unit is one
+action *verified*. Paid plans start at $299/month for 10,000 verified actions. This
+walkthrough consumes at most **two** of your free units.
 
-After the exact package version is publicly published and independently read
-back, run it with the version pinned:
+**Just exploring?** `POST /v1/demo/verify` takes raw claims, needs no key at all, and
+is shown at the end. It does not replace the signed-envelope walkthrough, because it
+does not check a signature.
+
+---
+
+> **Installation notice.** The npm registry currently serves **0.1.0, which has a known
+> first-use defect**: its input schema accepted any object for `mandate`, so a call built
+> from the keyless demo's shape returned `HTTP 400 invalid_request`. Use the tested
+> GitHub Release below until `0.1.1` is on npm. This notice is removed once the registry
+> artifact is validated.
+
+## Run the walkthrough
 
 ```bash
-AGENT_MANDATE_API_KEY="$AGENT_MANDATE_API_KEY" \
-  npx --yes @api-disk-integrations/agent-mandate-mcp@0.1.1
+git clone https://github.com/API-Disk-Integrations/agent-mandate-mcp.git
+cd agent-mandate-mcp
+git checkout v0.1.1
+npm ci
+AGENT_MANDATE_API_KEY=your_key node examples/verify-mandate.mjs
 ```
 
-Do not commit a literal credential. A generic stdio client configuration is:
+The example runner comes from this repository; the **MCP server it starts is the
+released 0.1.1 artifact**, downloaded from the release below, not your working tree.
+Omit `AGENT_MANDATE_API_KEY` and it prompts without echoing.
+
+### What it prints
+
+```
+=== 1. Create a mandate ===
+POST /v1/mandates -> 200
+envelope keys: mandate, signature, requestId
+signature: v1:b63eacaa7… (67 chars)
+
+=== 3. Verify the action against the signed envelope ===
+action: payments.transfer 30000 USD, approval required above 25000
+decision: requires_approval
+  violation: Actions above 25000 minor units need a human approval token.
+  digest: c90fd0bc104dce63…
+
+=== 4. Tamper with one signed field, keep the signature ===
+raising approvalRequiredAboveMinor 25000 -> 999999, which would turn this into an allow
+rejected: Agent Mandate error 400/invalid_request.
+The tampered mandate did not buy an allow. The signature is doing its job.
+```
+
+That is a real run against production, not illustrative output. The grant allows up to
+100,000 minor units but requires approval above 25,000, and the action asks for 30,000,
+so `requires_approval` is the **correct** answer. A `deny` or `requires_approval` is a
+correct result, not a failure.
+
+**Verification reports a result; your application remains responsible for enforcing it.**
+
+## Install the server
+
+Until `0.1.1` is on npm, install from the release tarball:
+
+```bash
+curl -fsSLO https://github.com/API-Disk-Integrations/agent-mandate-mcp/releases/download/v0.1.1/api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
+shasum -a 256 api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
+npm install -g ./api-disk-integrations-agent-mandate-mcp-0.1.1.tgz
+```
+
+Compare the checksum against the one published on the release page before installing.
+
+A generic stdio client configuration:
 
 ```json
 {
   "mcpServers": {
     "agent-mandate": {
-      "command": "npx",
-      "args": ["--yes", "@api-disk-integrations/agent-mandate-mcp@0.1.1"],
+      "command": "agent-mandate-mcp",
       "env": {
         "AGENT_MANDATE_API_KEY": "${AGENT_MANDATE_API_KEY}"
       }
@@ -42,18 +96,29 @@ Do not commit a literal credential. A generic stdio client configuration is:
 }
 ```
 
-`${AGENT_MANDATE_API_KEY}` denotes the host's secret/environment reference.
-Use the client host's documented secret facility if its interpolation syntax
-differs. The package uses stdio and reads exactly that environment variable;
-it has no remote `/mcp` endpoint.
+`${AGENT_MANDATE_API_KEY}` denotes the host's secret reference; use your client's
+documented secret facility if its syntax differs. The package uses stdio and reads
+exactly that environment variable. It has no remote `/mcp` endpoint.
 
-## Check whether an agent action exceeds its signed mandate
+Once `0.1.1` is published, the command becomes
+`npx --yes @api-disk-integrations/agent-mandate-mcp@0.1.1`.
 
-The complete first use, in two calls. Every command below was run against
-production on 2026-09-15 and the decision shown is the decision returned.
+## The two shapes, which is the thing that trips people up
 
-**Step 1 — create a mandate.** This returns the *signed envelope*. The tool needs
-this envelope, not the bare claims you send here.
+| Endpoint | Key | Takes |
+| --- | --- | --- |
+| `POST /v1/demo/verify` | none | `{mandate: {…claims…}, action: {…}}` — **raw claims** |
+| `POST /v1/verify` | yes | `{mandate: {mandate: {…claims…}, signature: "…"}, action: {…}}` — the **envelope** |
+
+The envelope is the entire response body of `POST /v1/mandates`:
+`{mandate, signature, requestId}`. Pass it through unchanged.
+
+`"mandate.mandate" must be the claims object` means bare claims were passed where the
+envelope belongs. Run `POST /v1/mandates` first and pass its whole response.
+
+## The two calls by hand
+
+**Step 1 — create a mandate.** Issuing is free and does not consume your allowance.
 
 ```sh
 curl -X POST https://agentmandate-api.com/v1/mandates \
@@ -74,8 +139,8 @@ curl -X POST https://agentmandate-api.com/v1/mandates \
   }'
 ```
 
-Answers `201` with `{"mandate": {…}, "signature": "…", "requestId": "…"}`.
-**That whole response body is the envelope.** Pass it through unchanged.
+Answers `200` with `{"mandate": {…}, "signature": "…", "requestId": "…"}`.
+**That whole body is the envelope.**
 
 **Step 2 — verify an action against it.** Call `verify_action` with the envelope as
 `mandate`:
@@ -93,20 +158,7 @@ Answers `201` with `{"mandate": {…}, "signature": "…", "requestId": "…"}`.
 }
 ```
 
-The grant allows up to 100000 minor units but requires approval above 25000, and the
-action asks for 30000. So the correct answer is **`requires_approval`**, with the
-violation `Actions above 25000 minor units need a human approval token.`
-
-**A `deny` or `requires_approval` is a correct result, not a failure.** The point of
-the tool is that it says no when the mandate says no.
-
-### If you get HTTP 400
-
-`"mandate.mandate" must be the claims object` means bare claims were passed where the
-envelope belongs. The keyless demo route `POST /v1/demo/verify` takes bare claims and
-needs no key, which is why the shapes differ. Run step 1 and pass its whole response.
-
-### Try it with no key at all
+### With no key at all
 
 ```sh
 curl -X POST https://agentmandate-api.com/v1/demo/verify \
@@ -114,7 +166,17 @@ curl -X POST https://agentmandate-api.com/v1/demo/verify \
   -d '{"mandate":{"principal":"user_8814","agent":"a1","expiresAt":"2026-12-31T23:59:59Z","currency":"USD","totalSpendCapMinor":500000,"grants":[{"action":"payments.transfer","resources":["vendor.acme"],"maxAmountMinor":100000,"approvalRequiredAboveMinor":25000}]},"action":{"agent":"a1","action":"payments.transfer","resource":"vendor.acme","amountMinor":30000,"currency":"USD"}}'
 ```
 
-Note this route takes **bare claims**, not the envelope.
+This route takes **bare claims**, not the envelope, and does not check a signature.
+
+## What this server does not do
+
+It does not issue or revoke mandates, execute an action, change an account, or call
+billing. It makes at most one API request per tool call and never retries
+automatically.
+
+- npm: `@api-disk-integrations/agent-mandate-mcp`
+- Official MCP Registry: `io.github.API-Disk-Integrations/agent-mandate`
+- source: `API-Disk-Integrations/agent-mandate-mcp`
 
 ## Tool contract
 
